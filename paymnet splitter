@@ -1,0 +1,39 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
+contract MultiTokenPaymentSplitter {
+    address[] public payees;
+    mapping(address => uint256) public shares;
+    mapping(address => bool) public isPayee;
+    IERC20 public token;
+
+    constructor(address[] memory _payees, uint256[] memory _shares, address _token) {
+        require(_payees.length == _shares.length, "Arrays length mismatch");
+        require(_payees.length > 0, "No payees");
+        
+        for (uint256 i = 0; i < _payees.length; i++) {
+            require(_payees[i] != address(0), "Invalid payee address");
+            require(!isPayee[_payees[i]], "Duplicate payee");
+            isPayee[_payees[i]] = true;
+            payees.push(_payees[i]);
+            shares[_payees[i]] = _shares[i];
+        }
+
+        token = IERC20(_token);
+    }
+
+    receive() external payable {
+        require(msg.value == 0, "Ether not accepted");
+        distributeTokens();
+    }
+
+    function distributeTokens() public {
+        require(token.balanceOf(address(this)) > 0, "No tokens to distribute");
+        for (uint256 i = 0; i < payees.length; i++) {
+            uint256 amount = (token.balanceOf(address(this)) * shares[payees[i]]) / 100;
+            token.transfer(payees[i], amount);
+        }
+    }
+}
